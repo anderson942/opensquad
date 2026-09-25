@@ -45,5 +45,19 @@ describe("POST /npc/chat", () => {
     });
 
     expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({ error: "Failed to reach the AI backend" });
+  });
+
+  it("returns 400 when history is not an array", async () => {
+    const fakeHermesClient: HermesClient = { sendMessage: vi.fn() };
+    const app = buildServer({ hermesClient: fakeHermesClient });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/npc/chat",
+      payload: { message: "oi", history: 123 },
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 });

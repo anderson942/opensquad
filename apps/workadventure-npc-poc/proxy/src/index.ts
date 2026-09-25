@@ -1,6 +1,11 @@
 import { buildServer } from "./server";
 import { createHermesClient } from "./hermesClient";
 
+if (!process.env.HERMES_API_BASE_URL || !process.env.HERMES_API_KEY) {
+  console.error("Missing required env vars: HERMES_API_BASE_URL and/or HERMES_API_KEY");
+  process.exit(1);
+}
+
 const hermesClient = createHermesClient({
   baseUrl: process.env.HERMES_API_BASE_URL ?? "",
   apiKey: process.env.HERMES_API_KEY ?? "",

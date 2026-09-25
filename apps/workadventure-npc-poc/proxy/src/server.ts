@@ -23,6 +23,10 @@ export function buildServer({ hermesClient }: BuildServerOptions): FastifyInstan
         return reply.status(400).send({ error: "message is required" });
       }
 
+      if (!Array.isArray(history)) {
+        return reply.status(400).send({ error: "history must be an array" });
+      }
+
       const fullHistory: ChatMessage[] = [...history, { role: "user", content: message }];
 
       try {
