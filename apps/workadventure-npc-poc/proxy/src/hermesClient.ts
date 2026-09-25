@@ -41,15 +41,15 @@ export function createHermesClient(
       });
 
       if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Hermes API returned ${response.status}: ${body}`);
+        const errorText = await response.text();
+        throw new Error(`Hermes API returned ${response.status}: ${errorText}`);
       }
 
       const data = (await response.json()) as {
         choices: { message: { content: string } }[];
       };
 
-      const reply = data.choices[0]?.message?.content;
+      const reply = data.choices?.[0]?.message?.content;
       if (!reply) {
         throw new Error("Hermes API returned no reply content");
       }
