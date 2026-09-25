@@ -1,0 +1,367 @@
+# WorkAdventure — piloto isolado (EasyPanel)
+#
+# Adaptado do docker-compose.prod.yaml oficial
+# (github.com/workadventure/workadventure/blob/v1.33.10/contrib/docker/docker-compose.prod.yaml),
+# fixado na versão v1.33.10 (última estável em 2026-09-25).
+#
+# IMPORTANTE — confirmado direto na fonte, não suposição: o compose oficial de
+# produção NÃO inclui LiveKit, Coturn, Jitsi nem Synapse. Esses são serviços
+# totalmente separados, hospedados em OUTROS servidores, se você quiser vídeo.
+# Usar este arquivo como está já significa zero infraestrutura de vídeo/áudio
+# — não precisamos "desligar" nada, só não instalamos o que não existe aqui.
+#
+# Única adaptação real feita: o serviço "reverse-proxy" (Traefik) do projeto
+# publica as portas 80/443/50051 do host E roda o próprio Let's Encrypt —
+# isso colide direto com o Traefik do EasyPanel, que já é dono dessas portas
+# no VPS. Adaptado pra:
+# - não publicar nenhuma porta de host (sem "ports:") — o EasyPanel enxerga
+#   esse serviço pela rede interna do Docker, mesmo padrão usado pro Hermes
+#   Agent e pro OmniRoute hoje
+# - não rodar Let's Encrypt próprio — o Traefik do EasyPanel já termina o
+#   HTTPS do domínio público; o Traefik interno só precisa rotear em HTTP puro
+#
+# Todo o resto (play, back, uploader, icon, redis, map-storage) está EXATAMENTE
+# igual ao arquivo oficial — inclusive os labels de Traefik com variantes
+# "-ssl"/"websecure"/"grpc", que ficam inertes (sem efeito, sem quebrar nada)
+# já que removemos essas entrypoints do Traefik interno. O roteamento real
+# acontece pelas rotas "web" (HTTP simples), que continuam ativas.
+#
+# Mapa de portas internas (uma porta do container "reverse-proxy" pro
+# EasyPanel apontar): 80 → roteia por path pra play (/ e /ws/), back (/api),
+# uploader (/uploader), icon (/icon, /lettericons) e map-storage (/map-storage)
+# — tudo isso já configurado nos labels abaixo, herdados do arquivo oficial.
+#
+# Mapa já publicado por padrão (sem precisar subir mapa próprio ainda):
+# START_ROOM_URL aponta pro map-starter-kit oficial hospedado no GitHub Pages
+# deles — serve pra validar que o deploy básico funciona antes de mexer no
+# script do NPC (Task 7+ do plano).
+
+services:
+  # Adaptado pro EasyPanel: SEM publicar portas de host e SEM Let's Encrypt
+  # proprio -- o Traefik do proprio EasyPanel ja termina o HTTPS do dominio
+  # publico. Esse Traefik interno so precisa rotear localmente (labels
+  # abaixo, em play/back/uploader/icon, continuam funcionando do jeito que
+  # o projeto documenta -- nao reimplementamos esse roteamento).
+  reverse-proxy:
+    image: traefik:v3.6.1
+    command:
+      - --log.level=${LOG_LEVEL}
+      - --providers.docker
+      - --providers.docker.exposedbydefault=false
+      - --entryPoints.web.address=:80
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: ${RESTART_POLICY}
+
+  play:
+    image: thecodingmachine/workadventure-play:${VERSION}
+    environment:
+      - DEBUG_MODE
+      - JITSI_URL
+      - JITSI_PRIVATE_MODE
+      - ENABLE_MAP_EDITOR
+      - MAP_EDITOR_ALLOWED_USERS
+      - MAP_EDITOR_ALLOW_ALL_USERS
+      - PUSHER_URL=https://${DOMAIN}/
+      - ICON_URL=/icon
+      - TURN_SERVER
+      - TURN_USER
+      - TURN_PASSWORD
+      - TURN_STATIC_AUTH_SECRET
+      - STUN_SERVER
+      - SKIP_RENDER_OPTIMIZATIONS
+      - MAX_PER_GROUP
+      - MAX_USERNAME_LENGTH
+      - DISABLE_ANONYMOUS
+      - DISABLE_NOTIFICATIONS
+      - SECRET_KEY
+      - API_URL=back:50051
+      - FRONT_URL=/
+      - INTERNAL_MAP_STORAGE_URL=http://map-storage:3000
+      - PUBLIC_MAP_STORAGE_URL=https://${DOMAIN}/map-storage
+      - START_ROOM_URL
+      - OPENID_PROMPT=login
+      - OPENID_WOKA_NAME_POLICY
+      - OPENID_CLIENT_ID
+      - OPENID_CLIENT_SECRET
+      - OPENID_CLIENT_ISSUER
+      - OPENID_PROFILE_SCREEN_PROVIDER
+      - OPENID_SCOPE
+      - OPENID_USERNAME_CLAIM
+      - OPENID_LOCALE_CLAIM
+      - OPENID_LOGOUT_REDIRECT_URL
+      - FALLBACK_LOCALE
+      - ENABLE_CHAT
+      - ENABLE_CHAT_UPLOAD
+      - ENABLE_CHAT_ONLINE_LIST
+      - ENABLE_CHAT_DISCONNECTED_LIST
+      - CLIENT_DISCONNECTION_RETENTION_MS
+      - REDIS_HOST=redis
+      - ENABLE_TUTORIAL=${ENABLE_TUTORIAL:-true}
+      - UPLOADER_URL=/uploader
+      # Report issues menu
+      - ENABLE_REPORT_ISSUES_MENU=${ENABLE_REPORT_ISSUES_MENU}
+      - REPORT_ISSUES_URL=${REPORT_ISSUES_URL}
+      - ENABLE_OPENAPI_ENDPOINT=true
+      - ADMIN_API_TOKEN
+      - ADMIN_API_URL
+      - ADMIN_URL
+      - ROOM_API_PORT=50051
+      - ROOM_API_SECRET_KEY=${ROOM_API_SECRET_KEY}
+      - GRPC_VERBOSITY=ERROR
+      - GRPC_TRACE=all
+      - SENTRY_ORG=${SENTRY_ORG}
+      - SENTRY_PROJECT=${SENTRY_PROJECT}
+      - SENTRY_DSN_FRONT=${SENTRY_DSN_FRONT}
+      - SENTRY_DSN_PUSHER=${SENTRY_DSN_PUSHER}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT}
+      - SENTRY_RELEASE=${SENTRY_RELEASE}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
+      - WOKA_SPEED
+      - FEATURE_FLAG_BROADCAST_AREAS=${FEATURE_FLAG_BROADCAST_AREAS}
+      # Tools integration
+      - KLAXOON_ENABLED=${KLAXOON_ENABLED}
+      - KLAXOON_CLIENT_ID=${KLAXOON_CLIENT_ID}
+      - YOUTUBE_ENABLED=${YOUTUBE_ENABLED}
+      - GOOGLE_DRIVE_ENABLED=${GOOGLE_DRIVE_ENABLED}
+      - GOOGLE_DOCS_ENABLED=${GOOGLE_DOCS_ENABLED}
+      - GOOGLE_SHEETS_ENABLED=${GOOGLE_SHEETS_ENABLED}
+      - GOOGLE_SLIDES_ENABLED=${GOOGLE_SLIDES_ENABLED}
+      - ERASER_ENABLED=${ERASER_ENABLED}
+      - EXCALIDRAW_ENABLED=${EXCALIDRAW_ENABLED}
+      - EXCALIDRAW_DOMAINS=${EXCALIDRAW_DOMAINS}
+      - EMBEDDED_DOMAINS_WHITELIST=${EMBEDDED_DOMAINS_WHITELIST}
+      - CARDS_ENABLED=${CARDS_ENABLED}
+      - TLDRAW_ENABLED=${TLDRAW_ENABLED}
+      - MINIMUM_DISTANCE=${MINIMUM_DISTANCE}
+      # Google drive picker
+      - GOOGLE_DRIVE_PICKER_CLIENT_ID=${GOOGLE_DRIVE_PICKER_CLIENT_ID}
+      - GOOGLE_DRIVE_PICKER_APP_ID=${GOOGLE_DRIVE_PICKER_APP_ID}
+      - MAP_STORAGE_API_TOKEN=${MAP_STORAGE_API_TOKEN:-${SECRET_KEY}}
+      - MATRIX_API_URI
+      - MATRIX_PUBLIC_URI
+      - MATRIX_ADMIN_USER
+      - MATRIX_ADMIN_PASSWORD
+      - MATRIX_DOMAIN
+      - LIVEKIT_API_KEY
+      - LIVEKIT_API_SECRET
+      - LIVEKIT_RECORDING_S3_ENDPOINT
+      - LIVEKIT_RECORDING_S3_ACCESS_KEY
+      - LIVEKIT_RECORDING_S3_SECRET_KEY
+      - LIVEKIT_RECORDING_S3_REGION
+      - LIVEKIT_RECORDING_S3_BUCKET
+      - LIVEKIT_RECORDING_S3_CDN_ENDPOINT
+      - LIVEKIT_PIXEL_DENSITY=${LIVEKIT_PIXEL_DENSITY:-}
+      - MAX_DISPLAYED_VIDEOS
+    labels:
+      traefik.enable: "true"
+
+      traefik.http.routers.play.rule: "Host(`${DOMAIN}`) && PathPrefix(`/`)"
+      traefik.http.routers.play.entryPoints: "web"
+      traefik.http.routers.play.service: play
+      traefik.http.services.play.loadbalancer.server.port: "3000"
+
+      traefik.http.routers.play-ssl.rule: "Host(`${DOMAIN}`) && PathPrefix(`/`)"
+      traefik.http.routers.play-ssl.entryPoints: "websecure"
+      traefik.http.routers.play-ssl.tls: "true"
+      traefik.http.routers.play-ssl.tls.certresolver: "myresolver"
+      traefik.http.routers.play-ssl.service: "play"
+
+      traefik.http.routers.play-ws.rule: "Host(`${DOMAIN}`) && PathPrefix(`/ws/`)"
+      traefik.http.routers.play-ws.entryPoints: "web"
+      traefik.http.routers.play-ws.service: play-ws
+      traefik.http.services.play-ws.loadbalancer.server.port: "3001"
+      traefik.http.services.play-ws.loadbalancer.sticky.cookie: "true"
+      traefik.http.services.play-ws.loadbalancer.sticky.cookie.name: "wa_ws_affinity"
+      traefik.http.services.play-ws.loadbalancer.sticky.cookie.httpOnly: "true"
+      traefik.http.services.play-ws.loadbalancer.sticky.cookie.sameSite: "lax"
+
+      traefik.http.routers.play-ws-ssl.rule: "Host(`${DOMAIN}`) && PathPrefix(`/ws/`)"
+      traefik.http.routers.play-ws-ssl.entryPoints: "websecure"
+      traefik.http.routers.play-ws-ssl.tls: "true"
+      traefik.http.routers.play-ws-ssl.tls.certresolver: "myresolver"
+      traefik.http.routers.play-ws-ssl.service: "play-ws"
+
+      traefik.http.routers.room-api.rule: "Host(`${DOMAIN}`)"
+      traefik.http.routers.room-api.entryPoints: "grpc"
+      traefik.http.routers.room-api.service: "room-api"
+      traefik.http.services.room-api.loadbalancer.server.port: "50051"
+      traefik.http.services.room-api.loadbalancer.server.scheme: "h2c"
+      traefik.http.routers.room-api.tls: "true"
+      traefik.http.routers.room-api.tls.certresolver: "myresolver"
+    restart: ${RESTART_POLICY}
+
+  back:
+    image: thecodingmachine/workadventure-back:${VERSION}
+    environment:
+      - PLAY_URL=https://${DOMAIN}
+      - MINIMUM_DISTANCE=${MINIMUM_DISTANCE}
+      - GROUP_RADIUS=${GROUP_RADIUS}
+      - SECRET_JITSI_KEY
+      - ENABLE_MAP_EDITOR
+      - SECRET_KEY
+      - ADMIN_API_TOKEN
+      - ADMIN_API_URL
+      - TURN_SERVER
+      - TURN_USER
+      - TURN_PASSWORD
+      - STUN_SERVER
+      - JITSI_URL
+      - JITSI_ISS
+      - BBB_URL
+      - BBB_SECRET
+      - MAX_PER_GROUP
+      - STORE_VARIABLES_FOR_LOCAL_MAPS
+      - REDIS_HOST=redis
+      - PROMETHEUS_AUTHORIZATION_TOKEN
+      - MAP_STORAGE_URL=map-storage:50053
+      - INTERNAL_MAP_STORAGE_URL=http://map-storage:3000
+      - PUBLIC_MAP_STORAGE_URL=https://${DOMAIN}/map-storage
+      - PLAYER_VARIABLES_MAX_TTL
+      - ENABLE_CHAT
+      - ENABLE_CHAT_UPLOAD
+      - SENTRY_DSN=${SENTRY_DSN_BACK}
+      - SENTRY_RELEASE
+      - SENTRY_TRACES_SAMPLE_RATE
+      - MAX_USERS_FOR_WEBRTC
+      - LIVEKIT_HOST
+      - LIVEKIT_API_KEY
+      - LIVEKIT_API_SECRET
+      - LIVEKIT_RECORDING_S3_ENDPOINT
+      - LIVEKIT_RECORDING_S3_ACCESS_KEY
+      - LIVEKIT_RECORDING_S3_SECRET_KEY
+      - LIVEKIT_RECORDING_S3_REGION
+      - LIVEKIT_RECORDING_S3_BUCKET
+      - LIVEKIT_RECORDING_S3_CDN_ENDPOINT
+    labels:
+      traefik.enable: "true"
+      traefik.http.middlewares.strip-api-prefix.stripprefix.prefixes: "/api"
+      traefik.http.routers.back.rule: "Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      traefik.http.routers.back.middlewares: "strip-api-prefix@docker"
+      traefik.http.routers.back.entryPoints: "web"
+      traefik.http.services.back.loadbalancer.server.port: "8080"
+      traefik.http.routers.back-ssl.middlewares: "strip-api-prefix@docker"
+      traefik.http.routers.back-ssl.rule: "Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      traefik.http.routers.back-ssl.entryPoints: "websecure"
+      traefik.http.routers.back-ssl.service: "back"
+      traefik.http.routers.back-ssl.tls: "true"
+      traefik.http.routers.back-ssl.tls.certresolver: "myresolver"
+    restart: ${RESTART_POLICY}
+
+  uploader:
+    image: thecodingmachine/workadventure-uploader:${VERSION}
+    environment:
+      - UPLOADER_URL=https://${DOMAIN}/uploader
+      #AWS
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+      - AWS_BUCKET=${AWS_BUCKET}
+      - AWS_URL=${AWS_URL}
+      - AWS_ENDPOINT=${AWS_ENDPOINT}
+      #REDIS
+      - REDIS_HOST=${UPLOADER_REDIS_HOST}
+      - REDIS_PORT=${UPLOADER_REDIS_PORT}
+      #CHAT
+      - ADMIN_API_URL=${ADMIN_API_URL}
+      - ENABLE_CHAT_UPLOAD=${ENABLE_CHAT_UPLOAD}
+      - UPLOAD_MAX_FILESIZE=${UPLOAD_MAX_FILESIZE}
+    labels:
+      traefik.enable: "true"
+      traefik.http.middlewares.strip-uploader-prefix.stripprefix.prefixes: "/uploader"
+      traefik.http.routers.uploader.rule: "Host(`${DOMAIN}`) && PathPrefix(`/uploader`)"
+      traefik.http.routers.uploader.middlewares: "strip-uploader-prefix@docker"
+      traefik.http.routers.uploader.entryPoints: "web"
+      traefik.http.services.uploader.loadbalancer.server.port: "8080"
+      traefik.http.routers.uploader-ssl.middlewares: "strip-uploader-prefix@docker"
+      traefik.http.routers.uploader-ssl.rule: "Host(`${DOMAIN}`) && PathPrefix(`/uploader`)"
+      traefik.http.routers.uploader-ssl.entryPoints: "websecure"
+      traefik.http.routers.uploader-ssl.service: "uploader"
+      traefik.http.routers.uploader-ssl.tls: "true"
+      traefik.http.routers.uploader-ssl.tls.certresolver: "myresolver"
+    restart: ${RESTART_POLICY}
+
+  icon:
+    image: matthiasluedtke/iconserver:v3.21.0
+    labels:
+      traefik.enable: "true"
+      traefik.http.middlewares.strip-icon-prefix.stripprefix.prefixes: "/icon"
+      traefik.http.routers.icon.middlewares: "strip-icon-prefix@docker"
+      traefik.http.routers.icon.rule: "Host(`${DOMAIN}`) && PathPrefix(`/icon`)"
+      traefik.http.routers.icon.entryPoints: "web"
+      traefik.http.services.icon.loadbalancer.server.port: "8080"
+      traefik.http.routers.icon-ssl.middlewares: "strip-icon-prefix@docker"
+      traefik.http.routers.icon-ssl.rule: "Host(`${DOMAIN}`) && PathPrefix(`/icon`)"
+      traefik.http.routers.icon-ssl.entryPoints: "websecure"
+      traefik.http.routers.icon-ssl.service: "icon"
+      traefik.http.routers.icon-ssl.tls: "true"
+      traefik.http.routers.icon-ssl.tls.certresolver: "myresolver"
+      # Route for /lettericons (redirect target from iconserver)
+      traefik.http.routers.lettericons.rule: "Host(`${DOMAIN}`) && PathPrefix(`/lettericons`)"
+      traefik.http.routers.lettericons.entryPoints: "web"
+      traefik.http.routers.lettericons.service: "icon"
+      traefik.http.routers.lettericons-ssl.rule: "Host(`${DOMAIN}`) && PathPrefix(`/lettericons`)"
+      traefik.http.routers.lettericons-ssl.entryPoints: "websecure"
+      traefik.http.routers.lettericons-ssl.service: "icon"
+      traefik.http.routers.lettericons-ssl.tls: "true"
+      traefik.http.routers.lettericons-ssl.tls.certresolver: "myresolver"
+    restart: ${RESTART_POLICY}
+
+  redis:
+    image: redis:6
+    volumes:
+      - redisdata:/data
+    restart: ${RESTART_POLICY}
+
+  map-storage:
+    image: thecodingmachine/workadventure-map-storage:${VERSION}
+    environment:
+      API_URL: back:50051
+      PROMETHEUS_AUTHORIZATION_TOKEN: "$PROMETHEUS_AUTHORIZATION_TOKEN"
+      AUTHENTICATION_STRATEGY: "${MAP_STORAGE_AUTHENTICATION_STRATEGY:-}"
+      ENABLE_BEARER_AUTHENTICATION: "$MAP_STORAGE_ENABLE_BEARER_AUTHENTICATION"
+      ENABLE_BASIC_AUTHENTICATION: "$MAP_STORAGE_ENABLE_BASIC_AUTHENTICATION"
+      ENABLE_DIGEST_AUTHENTICATION: "$MAP_STORAGE_ENABLE_DIGEST_AUTHENTICATION"
+      AUTHENTICATION_USER: "$MAP_STORAGE_AUTHENTICATION_USER"
+      AUTHENTICATION_PASSWORD: "$MAP_STORAGE_AUTHENTICATION_PASSWORD"
+      AUTHENTICATION_TOKEN: "$MAP_STORAGE_AUTHENTICATION_TOKEN"
+      AUTHENTICATION_VALIDATOR_URL: "$MAP_STORAGE_AUTHENTICATION_VALIDATOR_URL"
+      SENTRY_DSN: $SENTRY_DSN_MAPSTORAGE
+      SENTRY_RELEASE: $SENTRY_RELEASE
+      SENTRY_ENVIRONMENT: $SENTRY_ENVIRONMENT
+      SENTRY_TRACES_SAMPLE_RATE: $SENTRY_TRACES_SAMPLE_RATE
+      SECRET_KEY: $SECRET_KEY
+      PATH_PREFIX: "/map-storage"
+      ENTITY_COLLECTION_URLS: "https://${DOMAIN}/collections/FurnitureCollection.json,https://${DOMAIN}/collections/OfficeCollection.json"
+      MAP_STORAGE_API_TOKEN: "${MAP_STORAGE_API_TOKEN:-${SECRET_KEY}}"
+      PUSHER_URL: "https://${DOMAIN}/"
+    volumes:
+      - map-storage-data:/maps
+    labels:
+      traefik.enable: "true"
+      traefik.http.middlewares.strip-map-storage-prefix.stripprefix.prefixes: "/map-storage"
+      traefik.http.routers.map-storage.middlewares: "strip-map-storage-prefix@docker"
+      traefik.http.routers.map-storage.rule: "Host(`${DOMAIN}`) && PathPrefix(`/map-storage`)"
+      traefik.http.routers.map-storage.entryPoints: "web"
+      traefik.http.services.map-storage.loadbalancer.server.port: "3000"
+      traefik.http.routers.map-storage-ssl.middlewares: "strip-map-storage-prefix@docker"
+      traefik.http.routers.map-storage-ssl.rule: "Host(`${DOMAIN}`) && PathPrefix(`/map-storage`)"
+      traefik.http.routers.map-storage-ssl.entryPoints: "websecure"
+      traefik.http.routers.map-storage-ssl.service: "map-storage"
+      traefik.http.routers.map-storage-ssl.tls: "true"
+      traefik.http.routers.map-storage-ssl.tls.certresolver: "myresolver"
+    restart: ${RESTART_POLICY}
+
+  npc-proxy:
+    build:
+      context: ../../../../apps/workadventure-npc-poc/proxy
+    restart: ${RESTART_POLICY}
+    environment:
+      - HERMES_API_BASE_URL=${HERMES_API_BASE_URL}
+      - HERMES_API_KEY=${HERMES_API_KEY}
+      - HERMES_MODEL=hermes-agent
+      - PORT=3100
+
+volumes:
+  redisdata:
+  map-storage-data:
