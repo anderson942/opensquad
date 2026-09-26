@@ -1,6 +1,6 @@
 import Fastify, { FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
-import { ChatMessage, HermesClient } from "./hermesClient";
+import { ChatMessage, HermesClient } from "./hermesClient.js";
 
 export interface BuildServerOptions {
   hermesClient: HermesClient;
