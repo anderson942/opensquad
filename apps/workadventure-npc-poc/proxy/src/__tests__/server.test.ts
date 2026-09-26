@@ -60,4 +60,49 @@ describe("POST /npc/chat", () => {
 
     expect(response.statusCode).toBe(400);
   });
+
+  it("responds to a CORS preflight from the allowed WorkAdventure origin", async () => {
+    const fakeHermesClient: HermesClient = { sendMessage: vi.fn() };
+    const app = buildServer({ hermesClient: fakeHermesClient });
+
+    const response = await app.inject({
+      method: "OPTIONS",
+      url: "/npc/chat",
+      headers: {
+        origin: "https://workadventure.andersonautomacoes.com.br",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+      },
+    });
+
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "https://workadventure.andersonautomacoes.com.br"
+    );
+    expect(response.headers["access-control-allow-methods"]).toContain("POST");
+  });
+
+  it("only ever advertises the single allowed origin, never the caller's own origin", async () => {
+    // @fastify/cors, configured with a static string, always answers with
+    // that one configured origin (see its resolveOriginOption behavior) --
+    // it does not echo back whatever Origin header the caller sent. Actual
+    // cross-origin enforcement then happens client-side: a real browser on
+    // https://evil.example.com would refuse to expose this response to page
+    // JS, because the ACAO header it got back doesn't match its own origin.
+    const fakeHermesClient: HermesClient = { sendMessage: vi.fn() };
+    const app = buildServer({ hermesClient: fakeHermesClient });
+
+    const response = await app.inject({
+      method: "OPTIONS",
+      url: "/npc/chat",
+      headers: {
+        origin: "https://evil.example.com",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+      },
+    });
+
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "https://workadventure.andersonautomacoes.com.br"
+    );
+  });
 });
