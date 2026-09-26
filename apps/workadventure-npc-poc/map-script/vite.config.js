@@ -6,6 +6,7 @@ const maps = getMaps();
 export default defineConfig({
   base: "./",
   build: {
+    manifest: true,
     rollupOptions: {
       input: {
         index: "./index.html",
