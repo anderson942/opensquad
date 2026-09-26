@@ -22,6 +22,7 @@ export function setupNpcInteraction(
   deps: NpcInteractionDeps
 ): void {
   let isNear = false;
+  let isWaiting = false;
   let history: ChatMessage[] = [];
 
   deps.onEnterZone(zoneName, () => {
@@ -34,8 +35,9 @@ export function setupNpcInteraction(
   });
 
   deps.onLocalChatMessage((message: string) => {
-    if (!isNear) return;
+    if (!isNear || isWaiting) return;
 
+    isWaiting = true;
     deps.startTyping();
 
     deps
@@ -46,10 +48,13 @@ export function setupNpcInteraction(
           { role: "user", content: message },
           { role: "assistant", content: reply },
         ];
+        isWaiting = false;
         deps.stopTyping();
         deps.sendLocalMessage(reply, npcName);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("[npcInteraction] callProxy failed", error);
+        isWaiting = false;
         deps.stopTyping();
         deps.sendLocalMessage(FALLBACK_ERROR_MESSAGE, npcName);
       });
