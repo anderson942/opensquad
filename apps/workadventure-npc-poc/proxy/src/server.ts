@@ -21,7 +21,7 @@ export function buildServer({
 
   app.register(cors, {
     origin: ALLOWED_ORIGIN,
-    methods: ["POST"],
+    methods: ["POST", "GET"],
     allowedHeaders: ["Content-Type"],
   });
 

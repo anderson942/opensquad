@@ -189,5 +189,24 @@ describe("bot control endpoints", () => {
 
       expect(response.statusCode).toBe(400);
     });
+
+    it("responds to a CORS preflight allowing GET from the allowed WorkAdventure origin", async () => {
+      const { app } = buildTestServer();
+
+      const response = await app.inject({
+        method: "OPTIONS",
+        url: "/bot/pending",
+        headers: {
+          origin: "https://workadventure.andersonautomacoes.com.br",
+          "access-control-request-method": "GET",
+          "access-control-request-headers": "content-type",
+        },
+      });
+
+      expect(response.headers["access-control-allow-origin"]).toBe(
+        "https://workadventure.andersonautomacoes.com.br"
+      );
+      expect(response.headers["access-control-allow-methods"]).toContain("GET");
+    });
   });
 });
