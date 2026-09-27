@@ -19,9 +19,23 @@ async function clickIfPresent(locator: Locator, timeoutMs: number): Promise<void
  * https://workadventure.andersonautomacoes.com.br in headless Chromium.
  */
 export async function completeEntryFlow(page: Page, playerName: string, roomUrl: string): Promise<void> {
-  await page.goto(roomUrl, { waitUntil: "networkidle" });
+  page.on("console", (msg) => console.log(`[page:console:${msg.type()}]`, msg.text()));
+  page.on("pageerror", (err) => console.error("[page:pageerror]", err));
+  page.on("requestfailed", (req) => console.error("[page:requestfailed]", req.url(), req.failure()?.errorText));
 
-  await page.getByTestId("loginSceneNameInput").fill(playerName);
+  const response = await page.goto(roomUrl, { waitUntil: "networkidle" });
+  console.log("[entryFlow] navigated", { url: page.url(), status: response?.status() });
+
+  try {
+    await page.getByTestId("loginSceneNameInput").fill(playerName);
+  } catch (err) {
+    console.error("[entryFlow] name input never appeared", {
+      url: page.url(),
+      title: await page.title().catch(() => "<unavailable>"),
+      bodySnippet: (await page.content().catch(() => "")).slice(0, 2000),
+    });
+    throw err;
+  }
   await page.locator(".loginSceneFormSubmit").click();
 
   await page.locator(".selectCharacterSceneFormSubmit").click();
