@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { buildServer } from "../server";
 import type { HermesClient } from "../hermesClient";
+import { createBotCommandStore } from "../botCommands";
+import type { BotCommandStore } from "../botCommands";
 
 describe("POST /npc/chat", () => {
   it("returns the AI reply for a valid message", async () => {
@@ -104,5 +106,88 @@ describe("POST /npc/chat", () => {
     expect(response.headers["access-control-allow-origin"]).toBe(
       "https://workadventure.andersonautomacoes.com.br"
     );
+  });
+});
+
+describe("bot control endpoints", () => {
+  function buildTestServer() {
+    const fakeHermesClient: HermesClient = { sendMessage: vi.fn() };
+    const botCommandStore = createBotCommandStore();
+    const app = buildServer({ hermesClient: fakeHermesClient, botCommandStore });
+    return { app, botCommandStore };
+  }
+
+  describe("POST /bot/call", () => {
+    it("stores the command and returns 200", async () => {
+      const { app, botCommandStore } = buildTestServer();
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/bot/call",
+        payload: { botName: "Manu", destinationArea: "mesa-squad-vendas" },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(botCommandStore.takeCommand("Manu")).toEqual({ destinationArea: "mesa-squad-vendas" });
+    });
+
+    it("returns 400 when botName is missing", async () => {
+      const { app } = buildTestServer();
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/bot/call",
+        payload: { destinationArea: "mesa-squad-vendas" },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it("returns 400 when destinationArea is missing", async () => {
+      const { app } = buildTestServer();
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/bot/call",
+        payload: { botName: "Manu" },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+  });
+
+  describe("GET /bot/pending", () => {
+    it("returns null when no command is pending", async () => {
+      const { app } = buildTestServer();
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/bot/pending?botName=Manu",
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ command: null });
+    });
+
+    it("returns the pending command and clears it", async () => {
+      const { app, botCommandStore } = buildTestServer();
+      botCommandStore.setCommand("Manu", { destinationArea: "mesa-squad-vendas" });
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/bot/pending?botName=Manu",
+      });
+
+      expect(response.json()).toEqual({ command: { destinationArea: "mesa-squad-vendas" } });
+      expect(botCommandStore.takeCommand("Manu")).toBeUndefined();
+    });
+
+    it("returns 400 when botName query param is missing", async () => {
+      const { app } = buildTestServer();
+
+      const response = await app.inject({ method: "GET", url: "/bot/pending" });
+
+      expect(response.statusCode).toBe(400);
+    });
   });
 });

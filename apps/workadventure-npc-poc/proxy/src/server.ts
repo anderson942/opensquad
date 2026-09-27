@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import cors from "@fastify/cors";
 import { ChatMessage, HermesClient } from "./hermesClient.js";
+import { createBotCommandStore, type BotCommandStore, type BotCommand } from "./botCommands.js";
 
 // The map script runs from an iframe served by the self-hosted WorkAdventure
 // deployment, so that's the only origin allowed to call this API cross-origin.
@@ -9,9 +10,13 @@ const ALLOWED_ORIGIN = "https://workadventure.andersonautomacoes.com.br";
 
 export interface BuildServerOptions {
   hermesClient: HermesClient;
+  botCommandStore?: BotCommandStore;
 }
 
-export function buildServer({ hermesClient }: BuildServerOptions): FastifyInstance {
+export function buildServer({
+  hermesClient,
+  botCommandStore = createBotCommandStore(),
+}: BuildServerOptions): FastifyInstance {
   const app = Fastify({ logger: true });
 
   app.register(cors, {
@@ -24,6 +29,37 @@ export function buildServer({ hermesClient }: BuildServerOptions): FastifyInstan
     max: 20,
     timeWindow: "1 minute",
   });
+
+  app.post<{ Body: { botName: string; destinationArea: string } }>(
+    "/bot/call",
+    async (request, reply) => {
+      const { botName, destinationArea } = request.body ?? {};
+
+      if (!botName || typeof botName !== "string") {
+        return reply.status(400).send({ error: "botName is required" });
+      }
+      if (!destinationArea || typeof destinationArea !== "string") {
+        return reply.status(400).send({ error: "destinationArea is required" });
+      }
+
+      botCommandStore.setCommand(botName, { destinationArea });
+      return { ok: true };
+    }
+  );
+
+  app.get<{ Querystring: { botName?: string } }>(
+    "/bot/pending",
+    async (request, reply) => {
+      const { botName } = request.query ?? {};
+
+      if (!botName || typeof botName !== "string") {
+        return reply.status(400).send({ error: "botName is required" });
+      }
+
+      const command: BotCommand | undefined = botCommandStore.takeCommand(botName);
+      return { command: command ?? null };
+    }
+  );
 
   app.post<{ Body: { message: string; history?: ChatMessage[] } }>(
     "/npc/chat",
