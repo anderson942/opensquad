@@ -13,7 +13,7 @@ const PROXY_BASE_URL = "https://npc-proxy.andersonautomacoes.com.br";
 const PROXY_CHAT_URL = `${PROXY_BASE_URL}/npc/chat`;
 
 const BOT_NAME = "Manu";
-const BOT_POLL_INTERVAL_MS = 1500;
+const BOT_POLL_INTERVAL_MS = 5000;
 const KNOWN_DESTINATIONS: DestinationDefinition[] = [
   { areaName: "mesa-squad-vendas", aliases: ["squad de vendas", "squad vendas"] },
   { areaName: "mesa-manu", aliases: ["casa", "mesa dela", "mesa do manu"] },
