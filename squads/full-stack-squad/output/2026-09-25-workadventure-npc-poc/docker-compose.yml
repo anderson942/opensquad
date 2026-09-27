@@ -362,6 +362,14 @@ services:
       - HERMES_MODEL=hermes-agent
       - PORT=3100
 
+  bot-runner:
+    build:
+      context: ../../../../apps/workadventure-npc-poc/bot-runner
+    restart: ${RESTART_POLICY}
+    environment:
+      - BOT_NAME=Manu
+      - ROOM_URL=${BOT_ROOM_URL}
+
 volumes:
   redisdata:
   map-storage-data:
