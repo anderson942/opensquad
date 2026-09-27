@@ -3,6 +3,14 @@ import { getMaps, getMapsOptimizers, getMapsScripts } from "wa-map-optimizer-vit
 
 const maps = getMaps();
 
+// Self-hosted WorkAdventure instance — not the default play.workadventu.re
+// SaaS the plugin assumes otherwise. The generated script wrapper loads its
+// iframe_api.js from this URL, so it must match where our map is actually
+// played.
+const optimizeOptions = {
+  playUrl: "https://workadventure.andersonautomacoes.com.br",
+};
+
 export default defineConfig({
   base: "./",
   build: {
@@ -14,7 +22,7 @@ export default defineConfig({
       },
     },
   },
-  plugins: [...getMapsOptimizers(maps)],
+  plugins: [...getMapsOptimizers(maps, optimizeOptions)],
   server: {
     host: "localhost",
     headers: {
