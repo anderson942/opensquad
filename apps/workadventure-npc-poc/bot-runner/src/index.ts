@@ -11,7 +11,15 @@ if (!ROOM_URL) {
 }
 
 async function launchSession(): Promise<void> {
-  const browser = await chromium.launch({ headless: true });
+  // WorkAdventure tries to access the camera/microphone during its own boot
+  // sequence (before the entry flow even reaches the login field). Headless
+  // Chromium has no real media devices, so getUserMedia() throws
+  // NotFoundError, which appears to disrupt page initialization. Fake
+  // devices make getUserMedia() succeed instead, avoiding that entirely.
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
+  });
   try {
     const context = await browser.newContext({ permissions: [], locale: "pt-BR" });
     const page = await context.newPage();
