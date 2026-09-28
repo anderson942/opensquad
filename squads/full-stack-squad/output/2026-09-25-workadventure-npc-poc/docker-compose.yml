@@ -362,13 +362,20 @@ services:
       - HERMES_MODEL=hermes-agent
       - PORT=3100
 
-  bot-runner:
-    build:
-      context: ../../../../apps/workadventure-npc-poc/bot-runner
-    restart: ${RESTART_POLICY}
-    environment:
-      - BOT_NAME=Manu
-      - ROOM_URL=${BOT_ROOM_URL}
+  # bot-runner: temporarily disabled — its headless Chromium (Phaser/WebGL)
+  # workload appears to spike host CPU/memory enough to trigger repeated
+  # SIGTERM restarts of the redis container (confirmed via redis's own logs:
+  # graceful "Received SIGTERM scheduling shutdown" cycles, getting more
+  # frequent during bot-runner testing), which cascades into back losing its
+  # Redis connection and play/back intermittently 503ing. Re-enable only
+  # after investigating per-service resource limits in EasyPanel.
+  # bot-runner:
+  #   build:
+  #     context: ../../../../apps/workadventure-npc-poc/bot-runner
+  #   restart: ${RESTART_POLICY}
+  #   environment:
+  #     - BOT_NAME=Manu
+  #     - ROOM_URL=${BOT_ROOM_URL}
 
 volumes:
   redisdata:
