@@ -2,13 +2,11 @@
 
 /// <reference path="../node_modules/@workadventure/iframe-api-typings/iframe_api.d.ts" />
 
-import { setupNpcInteraction, ChatMessage } from "./npcInteraction.js";
+import { setupBubbleChat, ChatMessage } from "./bubbleChat.js";
 import { checkForCommandAndMove } from "./botMovement.js";
 import { setupBotCaller } from "./botCaller.js";
-import type { DestinationDefinition } from "./destinationParser.js";
+import { parseDestinationCommand, type DestinationDefinition } from "./destinationParser.js";
 
-const NPC_ZONE_NAME = "npc-manu-zone";
-const NPC_NAME = "Manu";
 const PROXY_BASE_URL = "https://npc-proxy.andersonautomacoes.com.br";
 const PROXY_CHAT_URL = `${PROXY_BASE_URL}/npc/chat`;
 
@@ -20,44 +18,63 @@ const KNOWN_DESTINATIONS: DestinationDefinition[] = [
 ];
 
 WA.onInit().then(() => {
-  // Existing fixed-NPC chat feature — unchanged, runs for every visitor including the bot.
-  setupNpcInteraction(NPC_ZONE_NAME, NPC_NAME, {
-    onEnterZone: (zone, cb) => {
-      WA.room.area.onEnter(zone).subscribe(cb);
-    },
-    onLeaveZone: (zone, cb) => {
-      WA.room.area.onLeave(zone).subscribe(cb);
-    },
-    onLocalChatMessage: (cb) => {
-      WA.chat.onChatMessage(cb, { scope: "local" });
-    },
-    sendLocalMessage: (message, author) => {
-      WA.chat.sendChatMessage(message, { scope: "local", author });
-    },
-    startTyping: () => {
-      WA.chat.startTyping({ scope: "local", author: NPC_NAME });
-    },
-    stopTyping: () => {
-      WA.chat.stopTyping({ scope: "local" });
-    },
-    callProxy: async (message: string, history: ChatMessage[]) => {
-      const response = await fetch(PROXY_CHAT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history }),
-      });
-      if (!response.ok) {
-        throw new Error(`Proxy returned ${response.status}`);
-      }
-      const data = (await response.json()) as { reply: string };
-      return data.reply;
-    },
-  });
-
-  // New: role-aware bot movement feature.
   const isBot = WA.player.name === BOT_NAME;
 
   if (isBot) {
+    let bubbleParticipantCount = 0;
+    const bubbleLeaveCallbacks: Array<() => void> = [];
+
+    WA.player.meetings.onJoin().subscribe((meeting) => {
+      if (meeting.kind !== "proximity") return;
+      bubbleParticipantCount = meeting.participants.length;
+      meeting.onParticipantJoin().subscribe(() => {
+        bubbleParticipantCount++;
+      });
+      meeting.onParticipantLeave().subscribe(() => {
+        bubbleParticipantCount = Math.max(0, bubbleParticipantCount - 1);
+      });
+      meeting.onLeave().subscribe(() => {
+        bubbleParticipantCount = 0;
+        bubbleLeaveCallbacks.forEach((cb) => cb());
+      });
+    });
+
+    setupBubbleChat(BOT_NAME, {
+      onBubbleMessage: (cb) => {
+        WA.chat.onChatMessage(
+          (message, event) => cb(message, event.author?.name),
+          { scope: "bubble" }
+        );
+      },
+      onBubbleLeave: (cb) => {
+        bubbleLeaveCallbacks.push(cb);
+      },
+      getParticipantCount: () => bubbleParticipantCount,
+      isMovementCommand: (message) =>
+        parseDestinationCommand(message, BOT_NAME, KNOWN_DESTINATIONS) !== null,
+      sendBubbleMessage: (message) => {
+        WA.chat.sendChatMessage(message, { scope: "bubble" });
+      },
+      startTyping: () => {
+        WA.chat.startTyping({ scope: "bubble" });
+      },
+      stopTyping: () => {
+        WA.chat.stopTyping({ scope: "bubble" });
+      },
+      callProxy: async (message: string, history: ChatMessage[]) => {
+        const response = await fetch(PROXY_CHAT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, history }),
+        });
+        if (!response.ok) {
+          throw new Error(`Proxy returned ${response.status}`);
+        }
+        const data = (await response.json()) as { reply: string };
+        return data.reply;
+      },
+    });
+
     const runBotMovementLoop = () => {
       checkForCommandAndMove({
         pollForCommand: async () => {
