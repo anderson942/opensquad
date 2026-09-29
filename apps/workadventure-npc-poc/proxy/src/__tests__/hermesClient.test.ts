@@ -98,6 +98,40 @@ describe("createHermesClient", () => {
     });
   });
 
+  it("sends the X-Hermes-Session-Id header when a sessionId is configured", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "ok" } }] }),
+    });
+
+    const client = createHermesClient(
+      { baseUrl: "https://hermes-api.example.com", apiKey: "k", model: "hermes-agent", sessionId: "workadventure-manu" },
+      mockFetch as unknown as typeof fetch
+    );
+
+    await client.sendMessage([{ role: "user", content: "oi" }]);
+
+    expect(mockFetch.mock.calls[0][1].headers).toMatchObject({
+      "X-Hermes-Session-Id": "workadventure-manu",
+    });
+  });
+
+  it("does not send the session header when no sessionId is configured", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "ok" } }] }),
+    });
+
+    const client = createHermesClient(
+      { baseUrl: "https://hermes-api.example.com", apiKey: "k", model: "hermes-agent" },
+      mockFetch as unknown as typeof fetch
+    );
+
+    await client.sendMessage([{ role: "user", content: "oi" }]);
+
+    expect(mockFetch.mock.calls[0][1].headers).not.toHaveProperty("X-Hermes-Session-Id");
+  });
+
   it("omits the model field entirely when config.model is an empty string", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,

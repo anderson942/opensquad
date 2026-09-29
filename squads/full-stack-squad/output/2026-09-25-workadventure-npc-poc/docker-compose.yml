@@ -360,6 +360,10 @@ services:
       - HERMES_API_BASE_URL=${HERMES_API_BASE_URL}
       - HERMES_API_KEY=${HERMES_API_KEY}
       - HERMES_MODEL=hermes-agent
+      # Memória persistente do Manu: o Hermes guarda a conversa no próprio
+      # volume, então o proxy só manda a mensagem nova. Um ID único = memória
+      # única do Manu, compartilhada entre quem conversar com ele.
+      - HERMES_SESSION_ID=workadventure-manu
       - PORT=3100
 
   bot-runner:

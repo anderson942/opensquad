@@ -2,7 +2,7 @@
 
 /// <reference path="../node_modules/@workadventure/iframe-api-typings/iframe_api.d.ts" />
 
-import { setupBubbleChat, ChatMessage } from "./bubbleChat.js";
+import { setupBubbleChat } from "./bubbleChat.js";
 import { checkForCommandAndMove } from "./botMovement.js";
 import { setupBotCaller } from "./botCaller.js";
 import { parseDestinationCommand, type DestinationDefinition } from "./destinationParser.js";
@@ -25,9 +25,9 @@ WA.onInit().then(async () => {
     await WA.players.configureTracking({ players: true, movement: false });
 
     let bubbleParticipantCount = 0;
-    const bubbleLeaveCallbacks: Array<() => void> = [];
 
     WA.player.meetings.onJoin().subscribe((meeting) => {
+      console.log("[bubbleChat] meeting joined", { kind: meeting.kind, participants: meeting.participants.length });
       if (meeting.kind !== "proximity") return;
       bubbleParticipantCount = meeting.participants.length;
       meeting.onParticipantJoin().subscribe(() => {
@@ -38,7 +38,6 @@ WA.onInit().then(async () => {
       });
       meeting.onLeave().subscribe(() => {
         bubbleParticipantCount = 0;
-        bubbleLeaveCallbacks.forEach((cb) => cb());
       });
     });
 
@@ -54,9 +53,6 @@ WA.onInit().then(async () => {
           { scope: "bubble" }
         );
       },
-      onBubbleLeave: (cb) => {
-        bubbleLeaveCallbacks.push(cb);
-      },
       getParticipantCount: () => bubbleParticipantCount,
       isMovementCommand: (message) =>
         parseDestinationCommand(message, BOT_NAME, KNOWN_DESTINATIONS) !== null,
@@ -69,11 +65,11 @@ WA.onInit().then(async () => {
       stopTyping: () => {
         WA.chat.stopTyping({ scope: "bubble" });
       },
-      callProxy: async (message: string, history: ChatMessage[]) => {
+      callProxy: async (message: string) => {
         const response = await fetch(PROXY_CHAT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, history }),
+          body: JSON.stringify({ message }),
         });
         if (!response.ok) {
           throw new Error(`Proxy returned ${response.status}`);

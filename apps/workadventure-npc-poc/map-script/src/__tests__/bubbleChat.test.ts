@@ -7,12 +7,10 @@ const flush = async () => {
 
 function createHarness() {
   let messageCb: (message: string, authorName: string | undefined) => void = () => {};
-  let leaveCb: () => void = () => {};
   let participantCount = 1;
 
   const deps: BubbleChatDeps = {
     onBubbleMessage: (cb) => { messageCb = cb; },
-    onBubbleLeave: (cb) => { leaveCb = cb; },
     getParticipantCount: () => participantCount,
     isMovementCommand: (message) => message.toLowerCase().includes("vai pro"),
     sendBubbleMessage: vi.fn(),
@@ -25,7 +23,6 @@ function createHarness() {
     deps,
     say: (message: string, author = "Anderson") => messageCb(message, author),
     sayAsBot: (message: string) => messageCb(message, undefined),
-    leaveBubble: () => leaveCb(),
     setParticipants: (n: number) => { participantCount = n; },
   };
 }
@@ -45,7 +42,7 @@ describe("setupBubbleChat", () => {
     await flush();
 
     expect(h.deps.startTyping).toHaveBeenCalled();
-    expect(h.deps.callProxy).toHaveBeenCalledWith("Anderson: bom dia", []);
+    expect(h.deps.callProxy).toHaveBeenCalledWith("Anderson: bom dia");
     expect(h.deps.stopTyping).toHaveBeenCalled();
     expect(h.deps.sendBubbleMessage).toHaveBeenCalledWith("Bom dia!");
   });
@@ -72,7 +69,7 @@ describe("setupBubbleChat", () => {
 
     h.say("manu, tudo bem?");
     await flush();
-    expect(h.deps.callProxy).toHaveBeenCalledWith("Anderson: manu, tudo bem?", []);
+    expect(h.deps.callProxy).toHaveBeenCalledWith("Anderson: manu, tudo bem?");
   });
 
   it("does not treat names containing the bot name as a mention", async () => {
@@ -82,25 +79,16 @@ describe("setupBubbleChat", () => {
     expect(h.deps.callProxy).not.toHaveBeenCalled();
   });
 
-  it("keeps history within the bubble and resets it when the bubble ends", async () => {
-    (h.deps.callProxy as any).mockResolvedValueOnce("Primeira resposta");
-    (h.deps.callProxy as any).mockResolvedValueOnce("Segunda resposta");
-    (h.deps.callProxy as any).mockResolvedValueOnce("Terceira resposta");
+  it("prefixes each message with its author so the shared memory knows who said what", async () => {
+    (h.deps.callProxy as any).mockResolvedValue("ok");
 
     h.say("primeira");
     await flush();
     h.say("segunda", "Maria");
     await flush();
 
-    expect(h.deps.callProxy).toHaveBeenLastCalledWith("Maria: segunda", [
-      { role: "user", content: "Anderson: primeira" },
-      { role: "assistant", content: "Primeira resposta" },
-    ]);
-
-    h.leaveBubble();
-    h.say("terceira");
-    await flush();
-    expect(h.deps.callProxy).toHaveBeenLastCalledWith("Anderson: terceira", []);
+    expect(h.deps.callProxy).toHaveBeenNthCalledWith(1, "Anderson: primeira");
+    expect(h.deps.callProxy).toHaveBeenNthCalledWith(2, "Maria: segunda");
   });
 
   it("drops a message that arrives while still waiting for a reply", async () => {

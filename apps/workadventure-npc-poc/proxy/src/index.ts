@@ -10,6 +10,7 @@ const hermesClient = createHermesClient({
   baseUrl: process.env.HERMES_API_BASE_URL ?? "",
   apiKey: process.env.HERMES_API_KEY ?? "",
   model: process.env.HERMES_MODEL ?? "hermes-agent",
+  sessionId: process.env.HERMES_SESSION_ID || undefined,
 });
 
 const app = buildServer({ hermesClient });

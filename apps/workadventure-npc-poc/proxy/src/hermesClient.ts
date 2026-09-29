@@ -11,6 +11,9 @@ export interface HermesClientConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  // When set, Hermes keeps the conversation server-side (persisted in its data
+  // volume) and callers only need to send the new message.
+  sessionId?: string;
 }
 
 export interface HermesClient {
@@ -31,12 +34,17 @@ export function createHermesClient(
         body.model = config.model;
       }
 
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      };
+      if (config.sessionId) {
+        headers["X-Hermes-Session-Id"] = config.sessionId;
+      }
+
       const response = await fetchFn(`${config.baseUrl}/v1/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.apiKey}`,
-        },
+        headers,
         body: JSON.stringify(body),
       });
 
