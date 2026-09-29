@@ -17,10 +17,13 @@ const KNOWN_DESTINATIONS: DestinationDefinition[] = [
   { areaName: "mesa-manu", aliases: ["casa", "mesa dela", "mesa do manu"] },
 ];
 
-WA.onInit().then(() => {
+WA.onInit().then(async () => {
   const isBot = WA.player.name === BOT_NAME;
 
   if (isBot) {
+    // Without player tracking, chat events arrive with `author` undefined.
+    await WA.players.configureTracking({ players: true, movement: false });
+
     let bubbleParticipantCount = 0;
     const bubbleLeaveCallbacks: Array<() => void> = [];
 
@@ -42,7 +45,12 @@ WA.onInit().then(() => {
     setupBubbleChat(BOT_NAME, {
       onBubbleMessage: (cb) => {
         WA.chat.onChatMessage(
-          (message, event) => cb(message, event.author?.name),
+          (message, event) => {
+            console.log("[bubbleChat] received", { authorId: event.authorId, author: event.author?.name });
+            // authorId is undefined only for the bot's own messages
+            const authorName = event.authorId === undefined ? undefined : event.author?.name ?? "Alguém";
+            cb(message, authorName);
+          },
           { scope: "bubble" }
         );
       },
