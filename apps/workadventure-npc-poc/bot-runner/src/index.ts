@@ -4,6 +4,12 @@ import { completeEntryFlow } from "./entryFlow.js";
 
 const BOT_NAME = process.env.BOT_NAME ?? "Manu";
 const ROOM_URL = process.env.ROOM_URL ?? "";
+// Each attempt launches a full Chromium + Phaser/WebGL session, which is a
+// genuinely heavy workload — a short relaunch delay was found to spike host
+// CPU enough to destabilize sibling containers (redis was observed
+// restarting repeatedly under a 5s delay). Default to a much more
+// conservative cadence while entry-flow reliability is still being fixed.
+const RELAUNCH_DELAY_MS = Number(process.env.RELAUNCH_DELAY_MS ?? 60000);
 
 if (!ROOM_URL) {
   console.error("Missing required env var: ROOM_URL");
@@ -35,4 +41,4 @@ async function launchSession(): Promise<void> {
   }
 }
 
-runSessionWithRelaunch(launchSession, { relaunchDelayMs: 5000 });
+runSessionWithRelaunch(launchSession, { relaunchDelayMs: RELAUNCH_DELAY_MS });
