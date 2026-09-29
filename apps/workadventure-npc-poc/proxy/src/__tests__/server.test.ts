@@ -143,13 +143,38 @@ describe("bot control endpoints", () => {
       expect(response.statusCode).toBe(400);
     });
 
-    it("returns 400 when destinationArea is missing", async () => {
+    it("returns 400 when neither destinationArea nor position is given", async () => {
       const { app } = buildTestServer();
 
       const response = await app.inject({
         method: "POST",
         url: "/bot/call",
         payload: { botName: "Manu" },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it("stores a position command (summon to the caller)", async () => {
+      const { app, botCommandStore } = buildTestServer();
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/bot/call",
+        payload: { botName: "Manu", position: { x: 420, y: 310 } },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(botCommandStore.takeCommand("Manu")).toEqual({ position: { x: 420, y: 310 } });
+    });
+
+    it("returns 400 when position coordinates are not finite numbers", async () => {
+      const { app } = buildTestServer();
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/bot/call",
+        payload: { botName: "Manu", position: { x: "420", y: null } },
       });
 
       expect(response.statusCode).toBe(400);

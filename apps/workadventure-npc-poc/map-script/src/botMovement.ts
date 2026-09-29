@@ -1,11 +1,9 @@
-export interface PendingCommand {
-  destinationArea: string;
-}
-
 export interface Position {
   x: number;
   y: number;
 }
+
+export type PendingCommand = { destinationArea: string } | { position: Position };
 
 export interface BotMovementDeps {
   pollForCommand: () => Promise<PendingCommand | null>;
@@ -18,6 +16,11 @@ export async function checkForCommandAndMove(deps: BotMovementDeps): Promise<voi
   try {
     const command = await deps.pollForCommand();
     if (!command) {
+      return;
+    }
+
+    if ("position" in command) {
+      await deps.moveTo(command.position.x, command.position.y);
       return;
     }
 

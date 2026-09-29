@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDestinationCommand, type DestinationDefinition } from "../destinationParser";
+import { parseDestinationCommand, isSummonCommand, type DestinationDefinition } from "../destinationParser";
 
 const DESTINATIONS: DestinationDefinition[] = [
   { areaName: "mesa-squad-vendas", aliases: ["squad de vendas", "squad vendas"] },
@@ -29,5 +29,22 @@ describe("parseDestinationCommand", () => {
     expect(parseDestinationCommand("MANU vai pro squad vendas", "Manu", DESTINATIONS)).toBe(
       "mesa-squad-vendas"
     );
+  });
+});
+
+describe("isSummonCommand", () => {
+  it("recognizes 'vem aqui' / 'vem cá' when the bot is mentioned", () => {
+    expect(isSummonCommand("Manu, vem aqui", "Manu")).toBe(true);
+    expect(isSummonCommand("manu vem cá por favor", "Manu")).toBe(true);
+    expect(isSummonCommand("Manu, vem ca", "Manu")).toBe(true);
+    expect(isSummonCommand("Manu, vem até mim", "Manu")).toBe(true);
+  });
+
+  it("ignores summon phrases that don't mention the bot", () => {
+    expect(isSummonCommand("vem aqui", "Manu")).toBe(false);
+  });
+
+  it("ignores messages mentioning the bot without a summon phrase", () => {
+    expect(isSummonCommand("Manu, tudo bem?", "Manu")).toBe(false);
   });
 });

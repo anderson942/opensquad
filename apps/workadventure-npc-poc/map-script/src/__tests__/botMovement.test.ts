@@ -33,6 +33,17 @@ describe("checkForCommandAndMove", () => {
     expect(deps.moveTo).toHaveBeenCalledWith(300, 150);
   });
 
+  it("moves straight to the given position for a summon command", async () => {
+    const deps = createFakeDeps({
+      pollForCommand: vi.fn().mockResolvedValue({ position: { x: 420, y: 310 } }),
+    });
+
+    await checkForCommandAndMove(deps);
+
+    expect(deps.getAreaCenter).not.toHaveBeenCalled();
+    expect(deps.moveTo).toHaveBeenCalledWith(420, 310);
+  });
+
   it("does not move when the destination area can't be resolved", async () => {
     const deps = createFakeDeps({
       pollForCommand: vi.fn().mockResolvedValue({ destinationArea: "does-not-exist" }),

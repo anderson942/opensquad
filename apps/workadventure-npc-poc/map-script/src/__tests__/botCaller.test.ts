@@ -14,6 +14,8 @@ function createFakeDeps() {
       messageCb = cb;
     },
     callBot: vi.fn().mockResolvedValue(undefined),
+    summonBot: vi.fn().mockResolvedValue(undefined),
+    getPosition: vi.fn().mockResolvedValue({ x: 420, y: 310 }),
     onError: vi.fn(),
   };
 
@@ -38,6 +40,19 @@ describe("setupBotCaller", () => {
     await Promise.resolve();
 
     expect(deps.callBot).toHaveBeenCalledWith("Manu", "mesa-squad-vendas");
+  });
+
+  it("summons the bot to the caller's current position on 'vem aqui'", async () => {
+    const { deps, triggerMessage } = createFakeDeps();
+    setupBotCaller("Manu", DESTINATIONS, deps);
+
+    triggerMessage("Manu, vem aqui");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(deps.getPosition).toHaveBeenCalled();
+    expect(deps.summonBot).toHaveBeenCalledWith("Manu", { x: 420, y: 310 });
+    expect(deps.callBot).not.toHaveBeenCalled();
   });
 
   it("reports an error instead of throwing when the call to the bot fails", async () => {

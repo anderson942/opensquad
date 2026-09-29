@@ -1,6 +1,6 @@
-export interface BotCommand {
-  destinationArea: string;
-}
+export type BotCommand =
+  | { destinationArea: string }
+  | { position: { x: number; y: number } };
 
 export interface BotCommandStore {
   setCommand(botName: string, command: BotCommand): void;

@@ -30,22 +30,34 @@ export function buildServer({
     timeWindow: "1 minute",
   });
 
-  app.post<{ Body: { botName: string; destinationArea: string } }>(
-    "/bot/call",
-    async (request, reply) => {
-      const { botName, destinationArea } = request.body ?? {};
+  app.post<{
+    Body: { botName: string; destinationArea?: string; position?: { x: unknown; y: unknown } };
+  }>("/bot/call", async (request, reply) => {
+    const { botName, destinationArea, position } = request.body ?? {};
 
-      if (!botName || typeof botName !== "string") {
-        return reply.status(400).send({ error: "botName is required" });
-      }
+    if (!botName || typeof botName !== "string") {
+      return reply.status(400).send({ error: "botName is required" });
+    }
+
+    if (destinationArea !== undefined) {
       if (!destinationArea || typeof destinationArea !== "string") {
-        return reply.status(400).send({ error: "destinationArea is required" });
+        return reply.status(400).send({ error: "destinationArea must be a non-empty string" });
       }
-
       botCommandStore.setCommand(botName, { destinationArea });
       return { ok: true };
     }
-  );
+
+    if (position !== undefined) {
+      const { x, y } = position ?? {};
+      if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) {
+        return reply.status(400).send({ error: "position must have finite numeric x and y" });
+      }
+      botCommandStore.setCommand(botName, { position: { x, y } });
+      return { ok: true };
+    }
+
+    return reply.status(400).send({ error: "destinationArea or position is required" });
+  });
 
   app.get<{ Querystring: { botName?: string } }>(
     "/bot/pending",

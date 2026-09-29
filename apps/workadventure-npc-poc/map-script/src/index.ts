@@ -3,9 +3,13 @@
 /// <reference path="../node_modules/@workadventure/iframe-api-typings/iframe_api.d.ts" />
 
 import { setupBubbleChat } from "./bubbleChat.js";
-import { checkForCommandAndMove } from "./botMovement.js";
+import { checkForCommandAndMove, type PendingCommand, type Position } from "./botMovement.js";
 import { setupBotCaller } from "./botCaller.js";
-import { parseDestinationCommand, type DestinationDefinition } from "./destinationParser.js";
+import {
+  isSummonCommand,
+  parseDestinationCommand,
+  type DestinationDefinition,
+} from "./destinationParser.js";
 
 const PROXY_BASE_URL = "https://npc-proxy.andersonautomacoes.com.br";
 const PROXY_CHAT_URL = `${PROXY_BASE_URL}/npc/chat`;
@@ -55,6 +59,7 @@ WA.onInit().then(async () => {
       },
       getParticipantCount: () => bubbleParticipantCount,
       isMovementCommand: (message) =>
+        isSummonCommand(message, BOT_NAME) ||
         parseDestinationCommand(message, BOT_NAME, KNOWN_DESTINATIONS) !== null,
       sendBubbleMessage: (message) => {
         WA.chat.sendChatMessage(message, { scope: "bubble" });
@@ -88,7 +93,7 @@ WA.onInit().then(async () => {
           if (!response.ok) {
             return null;
           }
-          const data = (await response.json()) as { command: { destinationArea: string } | null };
+          const data = (await response.json()) as { command: PendingCommand | null };
           return data.command;
         },
         getAreaCenter: async (areaName: string) => {
@@ -121,6 +126,20 @@ WA.onInit().then(async () => {
         if (!response.ok) {
           throw new Error(`Proxy returned ${response.status}`);
         }
+      },
+      summonBot: async (botName: string, position: Position) => {
+        const response = await fetch(`${PROXY_BASE_URL}/bot/call`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ botName, position }),
+        });
+        if (!response.ok) {
+          throw new Error(`Proxy returned ${response.status}`);
+        }
+      },
+      getPosition: async () => {
+        const { x, y } = await WA.player.getPosition();
+        return { x, y };
       },
       onError: (error) => console.error("[botCaller] error", error),
     });
